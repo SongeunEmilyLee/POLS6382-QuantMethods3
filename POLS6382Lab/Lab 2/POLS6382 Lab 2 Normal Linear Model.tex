@@ -1,0 +1,535 @@
+\documentclass[11pt]{article}
+\usepackage{latexsym}
+\usepackage{float}
+\usepackage{fullpage}
+\usepackage{amsfonts}
+\usepackage{amsmath, amsthm, amssymb}
+\usepackage{graphicx}
+\usepackage{endnotes}
+\usepackage{epsfig}
+\usepackage{setspace}
+\usepackage{natbib}
+\usepackage{multirow}
+\parskip=6pt
+
+\newcommand{\latex}{\LaTeX}
+\newcommand{\be}{\begin{enumerate}}
+\newcommand{\ee}{\end{enumerate}}
+\newcommand{\bq}{\begin{quote}}
+\newcommand{\eq}{\end{quote}}
+\newcommand{\bd}{\begin{description}}
+\newcommand{\ed}{\end{description}}
+\newcommand{\bi}{\begin{itemize}}
+\newcommand{\ei}{\end{itemize}}
+\newcommand{\brr}{\begin{raggedright}}
+\newcommand{\err}{\end{raggedright}}
+\newcommand{\bl}{\begin{Large}}
+\newcommand{\el}{\end{Large}}
+\newcommand{\eg}{for example}
+\renewcommand{\refname}{\normalsize\centering References}
+\hyphenpenalty=5000
+\exhyphenpenalty=4000
+\tolerance=2000
+
+\singlespace
+\begin{document}
+\begin{centering} \textbf {POLS6382 Quantitative Methods III: Maximum Likelihood Estimation}\\
+
+\vspace{2mm}
+Ling Zhu\\
+Associate Professor\\
+Department of Political Science\\
+University of Houston \\
+September 13, 2021 \\
+\vspace{2mm}
+ \textbf{Lab 2: Estimating a Linear Regression Model Using MLE}\\
+\end{centering}
+
+
+\section*{\normalsize Objectives}
+\begin{itemize} 
+\item Learn how to implement grid search in \texttt{R}.
+\item Compare OLS and ML estimators: normal regression model. 
+\item Consider heterskedasticity in ML estimation. 
+\end{itemize}
+
+\section{\normalsize Grid Search}
+
+The purpose of a grid search is to calculate the likelihood for a range of possible parameter values. The two primary considerations are the range from low to high parameter values and the mesh which determines how many values will be evaluated within this range. A coarse mesh will produce a fast but jagged plot of the likelihood, while a fine mesh will take longer to calculate but can produce a maximum likelihood estimate of high precision. Often a grid search is set up to be run several times with a variable mesh, starting with a coarse mesh to narrow the range in which the maximum of the likelihood falls, then an increasingly fine mesh to find the maximum with considerable precision.
+
+While these examples are not likely to be used in practice (where other numerical methods are much quicker and more precise) there are some cases in which grid searches are still used, particularly with ``difficult" likelihoods possessing several maxima or with rough likelihood surfaces. The purpose of doing a grid search for elementary problems is to get a feel for how one might find the maximum likelihood estimator to as high a precision as desired using numerical methods alone. Later we will apply analytic techniques and more sophisticated maximization methods.
+
+\subsection{\normalsize A Bernoulli Example}
+
+Imagine that you observe three independent outcomes distributed as a Bernoulli process in which two outcomes are successes (the respondents voted in the last election) and the third is a failure (the respondent did not vote.) If $\pi$is the probability of success, and hence $1-\pi$ is the probability of failure, and assuming the observations are independent, then our sample can be represented as $Y = {1, 1, 0}$ and the likelihood of the sample is:
+\begin{equation}
+L(\pi|y)=\pi\times\pi\times(1-\pi)
+\end{equation}
+Since this is a Bernoulli distribution the parameter $\pi$ represents the probability of a success and so must range between 0 and 1. We start the grid search by setting the range to (0, 1) and a coarse grid of .1. This search shows that the maximum of the likelihood lies between values of $\pi$ between about .6 and .7. We narrow the range to these values and set the mesh to .01 and repeat the grid search over these values. We narrow the range to these values and set the mesh to .01 and repeat the grid search over these values. Finally, we find that the maximum appears to fall between .661 and .669. We search this range with a mesh of .001.  The final estimate of the value of $\pi$that maximizes the likelihood is found to be .667 using the final mesh of .001. If we plot the three searches together, we'll see that the first ``trail" explores a large parameter space of $\pi$. The subsequent search just focus on the high-density territory, while the last search gets us even closer to the top of the ``hill".
+
+\noindent------------------------------------- R Code-------------------------------------------
+\small
+\begin{verbatim}
+# Search 1
+ pi1<-seq(0,1,.1)
+ like1<-pi1*pi1*(1-pi1) 
+# Search 2
+ pi2<-seq(.6,.7,.01)
+ like2<-pi2*pi2*(1-pi2) 
+# Search 3
+pi3<-seq(.661,.669,.001)
+like3<-pi3*pi3*(1-pi3) 
+
+par(mfrow=c(2,2))
+plot(like1~pi1,type="l")
+plot(like2~pi2,type="l")
+plot(like3~pi3,type="l")
+
+# Plot three figures together
+par(mfrow=c(1,1))
+plot(like1~pi1,type="l",col="gray",xlab=expression(pi),ylab="Likelihood")
+lines(pi2,like2, type="l",col=2,lty=2,lwd=3)
+lines(pi3,like3, type="l",col="blue",lwd=3)
+\end{verbatim}
+\noindent--------------------------------------R Output----------------------------------------------
+\vspace{-4mm}
+\begin{figure}[H]
+\includegraphics[height=2.6in,width=3in]{gridsearch.pdf} 
+\label{fig:gridsearch}
+\end{figure}
+\vspace{-8mm}
+\begin{figure}[H]
+\includegraphics[height=2.6in,width=3in]{gridsearch2.pdf} 
+\label{fig:gridsearch2}
+\end{figure}
+\normalsize
+\subsection{\normalsize Find the Maximum Likelihood Estimator using Grid Search}
+To list the full likelihood after the final search, and to find its maximum we use the functions:
+
+\noindent------------------------------------- R Code-------------------------------------------
+\small
+\begin{verbatim}
+print(cbind(pi3,like3))
+print(cbind(pi3,like3)[like3==max(like3),])
+\end{verbatim}
+\noindent--------------------------------------R Output----------------------------------------------
+\small
+\begin{verbatim}
+> print(cbind(pi3,like3))
+        pi3     like3
+ [1,] 0.661 0.1481162
+ [2,] 0.662 0.1481265
+ [3,] 0.663 0.1481348
+ [4,] 0.664 0.1481411
+ [5,] 0.665 0.1481454
+ [6,] 0.666 0.1481477
+ [7,] 0.667 0.1481480
+ [8,] 0.668 0.1481464
+ [9,] 0.669 0.1481427
+> print(cbind(pi3,like3)[like3==max(like3),])
+     pi3    like3 
+0.667000 0.148148 
+\end{verbatim}
+\normalsize
+The function \texttt{cbind()} combines the vectors $pi3$ and $like3$ as column vectors into an $N \times 2$ matrix. The \texttt{print} function prints this matrix. The second \texttt{print} function prints only the row of the combined vectors for which $like3$ is equal to its maximum. This is, of course, the maximum of the likelihood function and the corresponding value of $pi3$ is the \textit{maximum likelihood estimate} (for the degree of precision specified in the grid search, .001 in this case.)
+
+\section{\normalsize Comparing OLS and MLE: The Case of Normal Regression Models}
+During Tuesday's lecture, we learned how to use analytic solutions to find the ML estimator for a normal regression. We learned that for the mean coefficient estimator, $\beta$, the OLS estimator is essentially the ML estimator. However, the two approaches produce different estimators for $\sigma^{2}$. Only with a large sample size, the ML estimator for $\sigma^{2}$ is asymptotically equal to the OLS estimator for $\sigma^{2}$. In this section, we'll use simulations to compare OLS and ML estimators with different samples, with varying sample sizes.
+
+\subsection{\normalsize Simulation 1: N=21}
+In the first simulation, we simulate a vector of $x$ to be a sequence of numbers between -20 and 20, and set the mesh to be 2. This generates 21 observations. Next step, we define the sample size ($n1=21$) and the true parameter values for intercept $b0$ and slope $b1$. We set these two parameter values to be 3.5 and 2, respectively. Then, we define the dependent variable $y1$ to be a linear combination of $b0$, $x1$, and an random error,$e$. We define that $e\sim N(0,1)$. With this simulated data, we know that $y=3.5+2x+e$ is the true underlying model. 
+
+\noindent------------------------------------- R Code-------------------------------------------
+\vspace{-5mm}
+\small
+\begin{verbatim}
+x1<-seq(-20,20,2)
+n1<-21
+b0<-3.5
+b1<-2
+y1<-b0+b1*x1+rnorm(n1,0,1)
+\end{verbatim}
+\normalsize
+Next, we will fit both an OLS and an ML normal regression model, then compare results. Fitting an OLS regression in R is simple. We use the \texttt{lm()} in R. The function, \texttt{summary()} or \texttt{print} spell out the model output. 
+
+\noindent------------------------------------- R Code-------------------------------------------
+\vspace{-5mm}
+\small
+\begin{verbatim}
+olsmodel<-lm(y1~x1)
+summary(olsmodel)
+\end{verbatim}
+\noindent--------------------------------------R Output----------------------------------------------
+\small
+\begin{verbatim}
+Call:
+lm(formula = y1 ~ x1)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-1.0439 -0.3968 -0.0503  0.1191  2.3193 
+
+Coefficients:
+            Estimate Std. Error t value Pr(>|t|)    
+(Intercept)  3.45205    0.16842    20.5 2.04e-14 ***
+x1           1.96478    0.01391   141.3  < 2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 0.7718 on 19 degrees of freedom
+Multiple R-squared:  0.999,	Adjusted R-squared:  0.999 
+F-statistic: 1.996e+04 on 1 and 19 DF,  p-value: < 2.2e-16
+\end{verbatim}
+
+Function \texttt{stargazer()} from the ``\texttt{stargazer}" package can convert R model output in \LaTeX \space table code, following the AJPS style. Past the \LaTeX \space table code in .tex file, we produce Table \ref{tab:ols1}.
+
+\noindent------------------------------------- R Code-------------------------------------------
+\vspace{-5mm}
+\small
+\begin{verbatim}
+require(stargazer)
+stargazer(olsmodel)
+\end{verbatim}
+ 
+\begin{table}[H] \centering 
+  \caption{OLS Regression: Sample 1} 
+  \label{tab:ols1} 
+\begin{tabular}{@{\extracolsep{5pt}}lc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \multicolumn{1}{c}{\textit{Dependent variable:}} \\ 
+\cline{2-2} 
+\\[-1.8ex] & y1 \\ 
+\hline \\[-1.8ex] 
+ x1 & 1.965$^{***}$ \\ 
+  & (0.014) \\ 
+  & \\ 
+ Constant & 3.452$^{***}$ \\ 
+  & (0.168) \\ 
+  & \\ 
+\hline \\[-1.8ex] 
+Observations & 21 \\ 
+R$^{2}$ & 0.999 \\ 
+Adjusted R$^{2}$ & 0.999 \\ 
+Residual Std. Error & 0.772 (df = 19) \\ 
+F Statistic & 19,959.990$^{***}$ (df = 1; 19) \\ 
+\hline 
+\hline \\[-1.8ex] 
+\textit{Note:}  & \multicolumn{1}{r}{$^{*}$p$<$0.1; $^{**}$p$<$0.05; $^{***}$p$<$0.01} \\ 
+\end{tabular} 
+\end{table} 
+
+Now, we want to estimate a normal regression model using the maximum likelihood method. Estimating an ML normal regression in \texttt{R} is not as easy as estimating an OLS model. It takes several steps. First, we use \texttt{function()} to program the log-likelihood function, which is to be maximized with respect to parameters later. In our example, we need to define three parameters: the intercept ($\alpha$), the slope ($\beta$), and the variance ($\sigma^{2}$). The next line defines the log-likelihood function for a normal regression:
+\begin{equation}
+lnL=-\frac{1}{2}ln\sigma^{2}-\frac{1}{2}\frac{[y-(\alpha+x\beta)]^{2}}{\sigma^{2}}
+\end{equation}
+
+Once we write the log-likelihood function, we define data using our simulated sample (y1, x1, and sample size N). We then maximize the log-likelihood function with respect to the three defined parameters using function \texttt{maxLik()}. To start the optimization algorithm, we must set up a sequence of starting values, one for each parameter. 
+
+\noindent------------------------------------- R Code-------------------------------------------
+\vspace{-5mm}
+\small
+\begin{verbatim}
+library(maxLik)
+# Define parameters and log-likelihood function
+mlnormal<- function(param) {
+  alpha<- param[1]
+  beta<- param[2]
+  sigma <- param[3]
+  ll <- -0.5*log(sigma^2) -(0.5*((y-(alpha+beta*x))^2/sigma^2))
+  ll
+}
+
+# Define data
+x<-x1
+y<-y1
+N<-21
+
+# Maximizing the log-likelihood function
+mlemodel1<-maxLik(mlnormal, start=c(0,0,1))
+summary(mlemodel1)
+\end{verbatim}
+\noindent--------------------------------------R Output----------------------------------------------
+\small
+\begin{verbatim}
+Maximum Likelihood estimation
+Newton-Raphson maximisation, 16 iterations
+Return code 1: gradient close to zero
+Log-Likelihood: -4.009728 
+3  free parameters
+Estimates:
+     Estimate Std. error t value  Pr(> t)    
+[1,]  3.45205    0.16022  21.545  < 2e-16 ***
+[2,]  1.96478    0.01323 148.530  < 2e-16 ***
+[3,]  0.73414    0.11328   6.481 9.13e-11 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+--------------------------------------------
+\end{verbatim}
+
+Now, compare two models (OLS v. MLE), we see that the coefficient estimates are identical. Each model produces an intercept and slope coefficient, which are quite close to the true parameter values we set. But the OLS model produces slightly greater standard errors than the MLE model. 
+
+\subsection{Simulation 2: N=501}
+Next, we simulate a second sample, using the same true parameter values, but increasing the sample size from 21 to 501. We repeat the analysis in Section 2.1 to see how OLS compares with MLE with a relatively large sample size. Because we have written the log-likelihood function, in this analysis, we only need to redefine the sample (data). How would you compare the two models with a large sample size?
+
+\noindent------------------------------------- R Code-------------------------------------------
+\vspace{-5mm}
+\small
+\begin{verbatim}
+#2.2 Simulation 2: N=501
+x2<-seq(-250,250,1)
+n2<-501
+y2<-b0+b1*x2+rnorm(n2,0,1)
+# OLS,sample 2
+olsmodel2<-lm(y2~x2)
+# MLE,sample 2
+x<-x2
+y<-y2
+N<- 501
+mlemodel2<-maxLik(mlnormal, start=c(0,0,1))
+summary(olsmodel2)
+summary(mlemodel2)
+\end{verbatim}
+\noindent------------------------------------- R Output-------------------------------------------
+\small
+\begin{verbatim}
+> summary(olsmodel2)
+Call:
+lm(formula = y2 ~ x2)
+
+Residuals:
+    Min      1Q  Median      3Q     Max 
+-3.2590 -0.6013  0.0393  0.6666  2.4329 
+
+Coefficients:
+             Estimate Std. Error t value Pr(>|t|)    
+(Intercept) 3.4612627  0.0445986   77.61   <2e-16 ***
+x2          2.0000415  0.0003084 6485.81   <2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Residual standard error: 0.9983 on 499 degrees of freedom
+Multiple R-squared:      1,	Adjusted R-squared:      1 
+F-statistic: 4.207e+07 on 1 and 499 DF,  p-value: < 2.2e-16
+
+> summary(mlemodel2)
+--------------------------------------------
+Maximum Likelihood estimation
+Newton-Raphson maximisation, 22 iterations
+Return code 2: successive function values within tolerance limit
+Log-Likelihood: -248.621 
+3  free parameters
+Estimates:
+      Estimate Std. error t value Pr(> t)    
+[1,] 3.4612627  0.0445046   77.77  <2e-16 ***
+[2,] 2.0000415  0.0003078 6498.80  <2e-16 ***
+[3,] 0.9962566  0.0314735   31.65  <2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+--------------------------------------------
+\end{verbatim}
+\subsection{\normalsize Softeware Issues: R and Stata}
+In this lab, we use \texttt{maxLik()} to estimate normal regression models. When using \texttt{maxLik}, we must provide log-likelihood function and choose different optimization algorithms (the default is Newton). There are lots of optimizers in $R$.
+\begin{itemize}
+\item \texttt{maxLik} package: options for Newton-Raphson, BHHH, BFGS, others.
+\item \texttt{optima} (in \texttt{stats}): quasi-Newton, plus others.
+\item \texttt{newton} (in \texttt{stats}): Newton-Raphson solver.
+\item \texttt{solveLP} (in \texttt{linprog}): linear programming optimizer. 
+\end{itemize}
+
+In \texttt{Stata}, \texttt{ml} is the command that we can use to implement maximum likelihood estimation. The syntax is:
+\small 
+\begin{verbatim}
+.ml model <method> <progname> <eq>...
+.ml maximize
+\end{verbatim}
+
+\begin{itemize}
+\item An example with logistic likelihood (if y=1)
+\begin{equation}
+f(y,xb)=\frac{1}{1+exp(-xb)} 
+\end{equation}
+\noindent-------------------------------------Stata Code-----------------------------------
+\small
+\begin{verbatim}
+sysuse auto.dta
+program define mylogit
+          args lnf Xb
+          replace `lnf' = -ln(1+exp(-`Xb')) if $ML_y1==1
+          replace `lnf' = -`Xb' - ln(1+exp(-`Xb')) if $ML_y1==0
+  end
+
+ml model if mylogit(foreign=mpg weight)
+ml maximize
+\end{verbatim}  
+\noindent-------------------------------------Stata Output-----------------------------------
+\small
+\begin{verbatim}
+Iteration 5:   log likelihood = -27.175156  
+
+                                                  Number of obs   =         74
+                                                  Wald chi2(2)    =      17.78
+Log likelihood = -27.175156                       Prob > chi2     =     0.0001
+
+------------------------------------------------------------------------------
+     foreign |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+         mpg |  -.1685869   .0919175    -1.83   0.067    -.3487418     .011568
+      weight |  -.0039067   .0010116    -3.86   0.000    -.0058894    -.001924
+       _cons |   13.70837   4.518709     3.03   0.002     4.851859    22.56487
+------------------------------------------------------------------------------
+
+\end{verbatim}
+\end{itemize}
+
+
+\end{document}
+
+\section{\normalsize Considering Heteroskedasticity}
+\subsection{\normalsize Relax the Assumption of Constant Variance}
+During Tuesday's lecture, we define a normal regression model using the ML method. We make the assumption that the variance parameter, $\sigma^{2}$, is constant. In this way, we focus on the substantive effect of the slope coefficient, $\beta$ on the dependent variable, $y$. Yet, there are many potentially interesting phenomena that should lead us directly to a concern with $\sigma^2$, rather than with $\beta$.
+
+\subsection{\normalsize Example: PACs} 
+Consider PACs contributions for or against incumbent House members. virtually all of this work treats PACs as homogeneous, full information rational actors. But even the most basic knowledge about organization theory, and qualitative accounts of PAC structures, should cast doubt on this facile assumption. PACs may different in many organizational traits: size, revenue sources, internal decision-making rules, internal organizational structure (decentralized v. centralized), etc. How might these organizational features affect donations?
+\subsection{\normalsize Modeling Organizational Effects (Heterogeneity)} 
+\begin{enumerate}
+\item Suppose $y$ measures PAC contribution made to a race, with positive values representing donations to the incumbent and negative values support given to the challenger. 
+\item Ignore contribution limits.
+\item Assume that we take a sample of labor union PACs who are known to be similar in policy and ideological preferences. 
+\item Assume that we only have one explanatory variable to predict contribution: AFL-CIO support score for the incumbent in the previous session of Congress. 
+\item We conceptualize that organizational traits (such as decentralized decision-making or having a research staff) do not affect the contribution level to particular candidates. Instead, these variables should affect how close contributions are to their expected values. That is organizational variables affect the variability of contributions. 
+\begin{enumerate}
+\item We assume, PACs with research staff should be more predictable in their support, i.e. small $\sigma^{2}$.
+\item We assume, PACs with decentralized decision-making rules should be less predictable in their support, i.e. large $\sigma^2$. 
+\item In other words, organizational effects should show up in different $\sigma^{2}$ not in $\beta$.
+\end{enumerate}
+\item Specify the model:
+\begin{equation}
+y_{i}\sim \frac{1}{\sqrt{2\pi\sigma_{i}^{2}}}e^{-\frac{1}{2}[\frac{(y_{i}-x_{i}\beta)^2}{\sigma_{i}^2}]}
+\end{equation}
+\item In principle, each PAC now has a unique value for $\sigma_{i}^2$. This raises the same identification problem as we confront when estimating $u_{i}$.
+\item What we can do is to re-parameterize $\sigma^2_{i}$, by letting it be a linear function of a set of exogenous factors, $z_{i}$. We use the exponential function to make sure that $\sigma_{i}^{2}$ is always non-negative. This is also technically nice, because we do not have to worry about constraining $z_{i}\gamma$ to a particular range. 
+\begin{equation}
+\sigma_{i}^2=e^{z_{i}\gamma}
+\end{equation}
+\item The following figure illustrates varying variance and standard errors as a linear function of $z$.
+\noindent------------------------------------- R Code-------------------------------------------
+\small
+\begin{verbatim}
+z<-seq(-5,5,0.1)
+sigma2<-exp(2.0+0.2*z)
+sigma<-sqrt(sigma2)
+pdf(file="heteroskedasticity.pdf",height=7,width=5)
+plot(sigma2~z,col="red",type="l",lwd=3,
+     ylim=c(0,20),xlim=c(-5,5),
+     ylab="Predicted Variance and Standard Error")
+lines(z,sigma,col="blue",type="l",lwd=3,lty=2 )
+grid() 
+legend (-4,19, # The first two arguments define the position of the legend (x,y)
+        lty=c(1,2), # Define the line properties
+        lwd=c(3,3), # Define line width
+        col=c("red","blue"), # Define line colors
+        c("Variance", "Standard Error"), # Define the vector of labels
+        cex=0.5 # Option "cex" define the legend size
+)
+dev.off()
+\end{verbatim}
+\noindent------------------------------------- R Output-------------------------------------------
+\normalsize 
+\vspace{-8mm}
+\begin{figure}[H]
+\includegraphics[height=4in,width=3in]{heteroskedasticity.pdf} 
+\label{fig:heteroskedasticity}
+\end{figure}
+\item After re-parameterization, the heteroskedastic normal regression model is now written as:
+\begin{equation}
+y_{i}\sim \frac{1}{\sqrt{2\pi e^{z_{i}\gamma}}}e^{-\frac{1}{2}[\frac{(y_{i}-x_{i}\beta)^2}{e^{z_{i}\gamma}}]}
+\end{equation}
+\item We can now write the log-likelihood function as:
+\begin{equation}
+lnL(y,z,\beta,\gamma)=-\frac{N}{2}ln(2\pi)-\sum_{i=1}^N\frac{1}{2}z_{i}\gamma-\frac{1}{2}\sum_{i=1}^N[\frac{(y_{i}-x_{i}\beta)^2}{e^{z_{i}\gamma}}]
+\end{equation}
+\item We maximize the log-likelihood function with respect to $\beta$ and $\gamma$ to find the ML estimates. 
+\item This also allow us to test for the effect of each exogenous organizational variable in $z$ on the variance term. For example, we can test if the coefficient on staff was negative or if the effect of decentralization was positive. 
+\end{enumerate}
+\subsection{\normalsize Estimation in \texttt{R}}
+
+Surprisingly, in \texttt{R}, little exiting routine does heteroskedastic normal regression using the ML method. Happily, \texttt{R and Stata} let us write our own likelihood functions and maximize them.\footnote {The \texttt{GLLAMM} package in \texttt{Stata} can implement this with an HLM (hierarchical linear model) set up. We won't pursue this further in Lab 2.} While develop a complete \texttt{R} package is rather complicated, getting the basic program working is not too tough. In the next working example, we will use two HetReg functions written by Charles Franklin. 
+\begin{enumerate}
+\item Data example: pre-election polls and election forecasting.  Polls come with margins of error which depend on sample size. But the predictive value of pools depends on when the poll is taken and the dynamics of the campaign. Hence, the practical precision of polls is a function of time. We can model this as a heteroskedastic regression model that accounts for changes in the variability of polls as election day approaches (i.e. time-varying variance). 
+\item Model specification 1: we posit that the vote margin is a linear function of the following variables: \texttt{dempoll, reppoll,
+      deminc,repinc,} and \texttt{pollgap}. Heteroskedasticity is attributed to variable \texttt{days2go} (the number of days-to-go before the election 		day), \texttt{dempoll,reppoll,deminc}, and \texttt{repinc}.
+
+\noindent------------------------------------- R Code-------------------------------------------
+\small
+\begin{verbatim}
+load("hetpolls.RData")
+attach(govsen)
+names(govsen)
+# Add a new variable into the dataframe
+govsen$anyinc<-deminc+repinc
+attach(govsen)
+hreg1<-MLhetreg(votegap, cbind(dempoll,reppoll,
+      deminc,repinc,pollgap),
+      cbind(days2go,dempoll,reppoll,deminc,repinc))
+summary(hreg1) 
+\end{verbatim}
+\noindent------------------------------------- R Output-------------------------------------------
+\small
+\begin{verbatim}
+Heteroskedastic Linear Regression
+
+  Estimated Parameters
+              Estimate  Std. Error    z-value     Pr(>|z|)
+Constant  -0.612171009 0.361605215 -1.6929264 9.046948e-02
+dempoll   -5.457941935 0.842688813 -6.4768178 9.367717e-11
+reppoll    3.746292855 0.667026532  5.6164076 1.949685e-08
+deminc     0.376559858 0.591230765  0.6369084 5.241845e-01
+repinc    -0.229478591 0.533286654 -0.4303100 6.669701e-01
+pollgap    0.761652341 0.016286565 46.7656834 0.000000e+00
+ZConstant  3.680411989 0.086944987 42.3303530 0.000000e+00
+days2go   -0.006553575 0.001442331 -4.5437393 5.526499e-06
+dempoll    0.026577312 0.167622812  0.1585543 8.740201e-01
+reppoll   -0.354242462 0.159798606 -2.2168057 2.663637e-02
+deminc    -0.145487084 0.121359786 -1.1988080 2.306026e-01
+repinc    -0.180558044 0.103205405 -1.7495018 8.020432e-02
+
+Log-Likelihood:  -2367.821 
+
+Wald Test for Heteroskedasticity
+ Wald statistic:  26.81843 with  5  degrees of freedom
+                   p= 6.187894e-05 
+ \end{verbatim} 
+ \item We can also specify an alternative model, in which we include fewer explanatory variables. 
+ 
+ \noindent------------------------------------- R Code-------------------------------------------
+\small
+\begin{verbatim}
+hreg2<-MLhetreg(votegap, cbind(dempoll,reppoll, pollgap),
+                cbind(days2go,reppoll,anyinc))
+summary(hreg2)
+\end{verbatim}
+\noindent------------------------------------- R Output-------------------------------------------
+\small
+\begin{verbatim}
+Heteroskedastic Linear Regression
+
+  Estimated Parameters
+              Estimate  Std. Error   z-value     Pr(>|z|)
+Constant  -0.609701565 0.232044334 -2.627522 8.600931e-03
+dempoll   -5.473179622 0.830495650 -6.590257 4.390664e-11
+reppoll    3.785072844 0.659194506  5.741967 9.358328e-09
+pollgap    0.769885076 0.012875862 59.792896 0.000000e+00
+ZConstant  3.688586547 0.086298759 42.742058 0.000000e+00
+days2go   -0.006514894 0.001436769 -4.534408 5.776539e-06
+reppoll   -0.362126766 0.158248906 -2.288337 2.211793e-02
+anyinc    -0.173191428 0.092461749 -1.873114 6.105260e-02
+
+Log-Likelihood:  -2368.262 
+
+Wald Test for Heteroskedasticity
+  Wald statistic:  26.70332 with  3  degrees of freedom
+                   p= 6.79368e-06 
+\end{verbatim}
+  \end{enumerate}          
+ \end{document}
