@@ -40,506 +40,108 @@ setwd("/Users/songeunlee/Desktop/Ling/HW4")
 CCESdata<-read.csv("CCESdata.csv")
 ```
 
-# 1. Analyzing Oridnal Data: Preliminaries
+# 1. Analyzing 2022 Midterm Election Data
 
-## Question 1a
-```{r,warning=FALSE}
-# Descriptive Statistics: Dependent Variable (Abortion Opinions)
-
-# (1) Frequency distribution (table)
-freq_table <- table(data1$abortion)
-freq_table
-
-# (2) Proportion of each response category
-prop.table(freq_table)
-
-# (3) Mean and standard deviation (central tendency and dispersion)
-mean(data1$abortion, na.rm = TRUE)
-sd(data1$abortion, na.rm = TRUE)
-
-# (4) Visualization (ggplot bar chart)
-ggplot(data1, aes(x = factor(abortion))) +
-  geom_bar(fill = "powderblue", color = "powderblue") +
-  labs(
-    title = "Opinions on Abortion (ANES 1988)",
-    x = "Responses (1=Never, 2=Rape/Incest/Life, 3=Need Established, 4=Always Allowed)",
-    y = "Count (N = 1,377)"
-  ) +
-  theme_bw()
-
-# (5) Simple base R barplot (for quick reference)
-barplot(freq_table,
-        main = "Q: Which of the opinions on abortion best agrees with your view?",
-        xlab = "Opinions on Abortion",
-        ylab = "Frequency",
-        col = "royalblue")
-
-```
-
-```{r, warning=FALSE, fig.width=7, fig.height=5}
-# Descriptive Plots for Independent Variables (IVs)
-
-# Arrange plots in 2x2 layout
-par(mfrow = c(2, 2))
-
-# (1) Political Ideology
-# - Continuous 7-point scale: 1 = Extremely Liberal, 7 = Extremely Conservative
-# - Histogram shows distribution across the ideological spectrum
-iv1 <- hist(
-  data1$conservatism,
-  freq = TRUE,
-  main = "Ideology",
-  xlab = "Liberal–Conservative Ideology Scale (1–7)",
-  xlim = c(0, 7),
-  breaks = c(0, 1, 2, 3, 4, 5, 6, 7),
-  ylim = c(10, 700),
-  ylab = "Frequency",
-  col = "steelblue" 
-)
-text(iv1$mids, iv1$counts, labels = iv1$counts, adj = c(0.5, -0.5))
-
-# (2) Education Level
-# - Binary variable: 0 = High school or less; 1 = Attended college
-college_f_freq <- table(data1$college)
-iv2 <- barplot(
-  college_f_freq,
-  main = "Education Level",
-  xlab = "0 = <= High School; 1 = Any College",
-  ylab = "Frequency",
-  horiz = FALSE,
-  col = "lightcoral",   
-  beside = FALSE,
-  xlim = c(0, 2.5),
-  ylim = c(0, 1000)
-)
-text(x = iv2, y = college_f_freq, labels = round(college_f_freq, digits = 3), pos = 3, col = "black")
-
-# (3) Gender
-# - Binary variable: 0 = Male; 1 = Female
-female_f_freq <- table(data1$female)
-iv3 <- barplot(
-  female_f_freq,
-  main = "Gender",
-  xlab = "0 = Male; 1 = Female",
-  ylab = "Frequency",
-  horiz = FALSE,
-  col = "orchid",     
-  beside = FALSE,
-  xlim = c(0, 2.5),
-  ylim = c(0, 1000)
-)
-text(x = iv3, y = female_f_freq, labels = round(female_f_freq, digits = 3), pos = 3, col = "black")
-
-# (4) Race
-# - Binary variable: 0 = Other; 1 = African American
-black_f_freq <- table(data1$black)
-iv4 <- barplot(
-  black_f_freq,
-  main = "Race",
-  xlab = "0 = Other; 1 = African American",
-  ylab = "Frequency",
-  horiz = FALSE,
-  col = "deepskyblue", 
-  beside = FALSE,
-  xlim = c(0, 2.5),
-  ylim = c(10, 1700)
-)
-text(x = iv4, y = black_f_freq, labels = round(black_f_freq, digits = 3), pos = 3, col = "black")
-
-
-
-```
-
-
-## Question 1b
-```{r,warning=FALSE}
-# Model 
-model1<-polr(as.factor(abortion)~female+black+college+conservatism, data=data1,Hess=TRUE,model=TRUE)
-summary(model1)
-
-# Odds Ratios
-exp(coef(model1))
-(ci<-confint(model1))
-exp(cbind(OR = coef(model1), ci))
-```
-
-
-## Question 1c: ggpredict
+## Qeustion 1a and 1b: Data Preparation
 
 ```{r}
-# Q1c — Predicted Probabilities with 95% CIs (using ggpredict)
+# ---------------------------------------------------------------
+# Question 1a:
+# Download the 2022 CES post-election data from https://cces.gov.harvard.edu/
+# This code cleans and recodes key variables for analysis.
+# ---------------------------------------------------------------
 
-library(MASS)       # polr()
-library(ggeffects)  # ggpredict()
-library(ggplot2)    # plotting
-library(ggpubr)     # arranging multiple plots
+# Load packages
+library(dplyr)
+library(tidyr)
 
-# --- Data hygiene: make sure DV is ordered factor  ---
-data1$abortion <- factor(data1$abortion, levels = c(1, 2, 3, 4), ordered = TRUE)
+# Remove missing cases only for the variables we need
+CCESdata <- CCESdata %>%
+  drop_na(race, birthyear, gender, party, votereg, vote, education)
 
-# --- 1) Baseline ordered logit model (same as Q1b) ---
-#     DV: abortion (ordered)
-#     IVs: female, black, college, conservatism
-model1 <- polr(
-  abortion ~ female + black + college + conservatism,
-  data = data1,
-  Hess  = TRUE
-)
+# Recode variables
+CCESdata <- CCESdata %>%
+  mutate(
+    white     = ifelse(race == 1, 1, 0),          # 1 = White, 0 = Non-White
+    age       = 2022 - birthyear,                 # Age = 2022 minus birth year
+    male      = ifelse(gender == 1, 1, 0),        # 1 = Male, 0 = Female/Other
+    Democrat  = ifelse(party == 1, 1, 0),         # 1 = Democrat, 0 = Others
+    votereg   = ifelse(votereg == 1, 1, 0),       # 1 = Registered, 0 = Not/Don't know
+    vote      = ifelse(vote == 5, 1, 0),          # 1 = Voted, 0 = Did not vote
+    college   = ifelse(education %in% c(3,4,5,6), 1, 0)  # 1 = Some college or more
+  )
 
-# ============================================================
-# A. Predicted probabilities across the ideology scale
-#    - Shows how the probability of each abortion category changes
-#      as conservatism increases (holding other covariates at typical values)
-# ============================================================
+# Keep only the variables needed for this exercise
+data1 <- CCESdata %>%
+  dplyr::select(white, age, male, Democrat, votereg, vote, college)
 
-# Generate predictions for ideology from 1 to 7 by 0.2 steps
-pred_ideo <- ggpredict(model1, terms = c("conservatism[1:7 by=0.2]"))
-
-# Plot: lines + CI ribbons by response category
-fig_ideo <- ggplot(pred_ideo,
-                   aes(x = x, y = predicted,
-                       color = response.level, group = response.level)) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = response.level),
-              alpha = 0.15, color = NA) +
-  geom_line(size = 0.9) +
-  scale_color_brewer(palette = "Dark2", name = "Abortion Attitudes",
-                     labels = c("Complete Ban", "Conditional Ban",
-                                "Conditional Permission", "Pro-Choice")) +
-  scale_fill_brewer(palette = "Dark2", guide = "none") +
-  labs(x = "Conservative Ideology (1–7)",
-       y = "Predicted Probability",
-       title = "Predicted Probabilities by Ideology") +
-  theme_bw() +
-  theme(legend.position = "bottom",
-        axis.title = element_text(size = 13),
-        plot.title = element_text(face = "bold"))
-
-# ============================================================
-# B. Predicted probabilities by college attainment
-#    - Compares probabilities for 0 (No College) vs 1 (College)
-# ============================================================
-
-pred_college <- ggpredict(model1, terms = "college")
-
-fig_college <- ggplot(pred_college,
-                      aes(x = x, y = predicted,
-                          color = response.level, group = response.level)) +
-  geom_point(position = position_dodge(width = 0.25), size = 2) +
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
-                width = 0.15, position = position_dodge(width = 0.25)) +
-  scale_x_discrete(labels = c("0" = "No College", "1" = "College")) +
-  scale_color_brewer(palette = "Dark2", name = "Abortion Attitudes",
-                     labels = c("Complete Ban", "Conditional Ban",
-                                "Conditional Permission", "Pro-Choice")) +
-  labs(x = "College Degree",
-       y = "Predicted Probability",
-       title = "Predicted Probabilities by College Attainment") +
-  theme_bw() +
-  theme(legend.position = "bottom",
-        axis.title = element_text(size = 13),
-        plot.title = element_text(face = "bold"))
-
-# Show A+B side-by-side, sharing one legend at bottom
-ggarrange(fig_ideo, fig_college, nrow = 1, ncol = 2, common.legend = TRUE, legend = "bottom")
-
-# ============================================================
-# C. Interaction model: conservatism × college
-#    - Estimates whether ideology’s relationship with attitudes differs by college
-#    - Visualized as predicted probabilities across ideology, for each college group
-# ============================================================
-
-model_int <- polr(
-  abortion ~ conservatism * college + black + female,
-  data = data1,
-  Hess  = TRUE
-)
-
-# Predictions across ideology=1..7, separated by college = 0,1
-pred_int <- ggpredict(model_int,
-                      terms = c("conservatism[1:7 by=1]", "college[0,1]"),
-                      ci.lvl = 0.95)
-
-# ggpredict() returns a grouped data frame; `plot()` gives a good default.
-# We add labels and theme for consistency.
-fig_int <- plot(pred_int) +
-  labs(x = "Conservatism (1–7)",
-       y = "Predicted Probability",
-       color = "Education",
-       title = "Interaction: Ideology × College (Predicted Probabilities)") +
-  scale_color_discrete(labels = c("No College", "College")) +
-  theme_bw() +
-  theme(legend.position = "bottom",
-        axis.text = element_text(size = 12),
-        axis.title = element_text(size = 13),
-        plot.title = element_text(face = "bold"))
-
-# Show interaction plot
-print(fig_int)
+# Check data summary
+summary(data1) # Check the dataset with View(data1) or colnames(data1)
 
 ```
 
-## Question 1c: ggeffect()
+## Question 1c: Estimating a Standard Logit
 
-```{r, fig.width=7, fig.height=5}
-# Predicted Probabilities with 95% CIs 
-library(ggeffects)
+```{r}
+# ---------------------------------------------------------------
+# Question 1c: Predicting the Probability of Voting
+# Estimate standard logit models using 2022 CES data
+# ---------------------------------------------------------------
+
+library(dplyr)
 library(ggplot2)
-library(ggpubr)
 
-# Ideology 
-eff_ideo <- ggeffect(model1, terms = "conservatism [1:7 by=0.2]")
-fig_ideo <- plot(eff_ideo) +
-  labs(x = "Conservatism (1–7)", y = "Predicted Probability",
-       title = "Predicted Probabilities by Ideology") +
-  theme_bw() + theme(legend.position = "bottom", plot.title = element_text(face="bold"))
+# --- Model 1: Predict voting using demographics and partisanship ---
+logit_model1 <- glm(vote ~ white + age + male + Democrat + college,
+                    data = data1, family = binomial)
 
-# College 
-eff_college <- ggeffect(model1, terms = "college")
-if (!is.factor(eff_college$x)) {
-  eff_college$x <- factor(eff_college$x, levels = c(0,1),
-                          labels = c("No College","College"))
-}
-fig_college <- plot(eff_college) +
-  labs(x = "College Degree", y = "Predicted Probability",
-       title = "Predicted Probabilities by College") +
-  theme_bw() + theme(legend.position = "bottom", plot.title = element_text(face="bold"))
+summary(logit_model1)          # Model summary (log-odds)
+exp(coef(logit_model1))        # Exponentiated coefficients (odds ratios)
 
-# Interaction: conservatism × college (
-eff_int <- ggeffect(model_int, terms = c("conservatism [1:7]", "college"))
-if (!is.null(eff_int$group) && !is.factor(eff_int$group)) {
-  eff_int$group <- factor(eff_int$group, levels = c(0,1),
-                          labels = c("No College","College"))
-}
-fig_int <- plot(eff_int) +
-  labs(x = "Conservatism (1–7)", y = "Predicted Probability",
-       color = "Education", fill = "Education",
-       title = "Interaction: Ideology × College") +
-  theme_bw() + theme(legend.position = "bottom", plot.title = element_text(face="bold"))
+# --- Model 2: Add voter registration as an additional predictor ---
+logit_model2 <- glm(vote ~ white + age + male + Democrat + college + votereg,
+                    data = data1, family = binomial)
 
-ggarrange(fig_ideo, fig_college, nrow = 1, ncol = 2, common.legend = TRUE, legend = "bottom")
-print(fig_int)
+summary(logit_model2)
+exp(coef(logit_model2))
 
+# ---------------------------------------------------------------
+# Plotting Predicted Probabilities (Model 1)
+# ---------------------------------------------------------------
 
-```
+# Calculate variable means for continuous and binary predictors
+mean_white    <- mean(data1$white)
+mean_age      <- mean(data1$age)
+mean_male     <- mean(data1$male)
+mean_Democrat <- mean(data1$Democrat)
 
-## Question 1d
+# Create a new dataset varying college (0 = No College, 1 = College)
+new_data <- data.frame(
+  white     = mean_white,
+  age       = mean_age,
+  male      = mean_male,
+  Democrat  = mean_Democrat,
+  college   = c(0, 1)
+)
 
-```{r}
-# Formal Likelihood-Ratio Test 
-# Compare model fits
-dev1 <- deviance(model1)
-aic1 <- AIC(model1)
+# Predict log-odds and convert to probabilities with 95% CI
+pred <- predict(logit_model1, newdata = new_data, type = "link", se.fit = TRUE)
+prob <- plogis(pred$fit)
+lower <- plogis(pred$fit - 1.96 * pred$se.fit)
+upper <- plogis(pred$fit + 1.96 * pred$se.fit)
 
-# Stepwise model selection 
-fit <- step(model1)
+plot_data <- data.frame(
+  college = factor(new_data$college, labels = c("No College", "College")),
+  prob = prob, lower = lower, upper = upper
+)
 
-dev2 <- deviance(fit)
-aic2 <- AIC(fit)
-
-# Compare deviance difference (nested model test)
-diff_dev <- dev2 - dev1                 
-df_diff  <- model1$edf - fit$edf        
-p_val    <- pchisq(diff_dev, df_diff, lower.tail = FALSE)
+# --- Plot predicted probabilities with confidence intervals ---
+ggplot(plot_data, aes(x = college, y = prob)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.1) +
+  labs(x = "Education", y = "Predicted Probability of Voting") +
+  ylim(0, 1) +
+  theme_minimal()
 
 ```
 
-```{r}
-## Overall model fit by comparing more than one model
-## Looking at how many variables are significant and their magnitude
-deviance(model1)
-AIC(model1)
-fit <- step(model1)   # Lowest AIC indicates the best model
-deviance(fit)
-deviance(fit) - deviance(model1)
-pchisq(1.55, model1$edf - fit$edf, lower = F)
-
-```
-
-
-## Question 1e
-
-```{r}
-# One way to complete 
-fm1<-clm(as.factor(abortion)~female+black+college+conservatism, data=data1)
-summary(fm1)
-
-con.nom<-clm(as.factor(abortion)~female+black+college, nominal=~conservatism, data=data1)
-anova(fm1,con.nom)
-
-black.nom<-clm(as.factor(abortion)~female+college+conservatism, nominal=~black, data=data1)
-anova(fm1,black.nom)
-
-female.nom<-clm(as.factor(abortion)~black+college+conservatism, nominal=~female, data=data1)
-anova(fm1,female.nom)
-
-coll.nom<-clm(as.factor(abortion)~black+female+conservatism, nominal=~college, data=data1)
-anova(fm1,coll.nom)
-```
-
-
-```{r}
-# --- Brant Test for the Proportional Odds Assumption ---
-# Used after fitting an ordered logit model to check whether
-# each predictor has a constant effect across outcome categories.
-#
-# H0: The proportional-odds assumption holds.
-# H1: At least one variable violates this assumption.
-#
-# Interpretation:
-# - If the Omnibus p-value is significant (p < 0.05), it indicates that
-#   the proportional-odds assumption is violated for the model as a whole.
-# - If a variable’s p-value is significant (p < 0.05), it indicates that
-#   the proportional-odds assumption is violated for that specific variable.
-
-brant(model1)
-
-#You could also use the clm model or the "crude way" using prop. table
-```
-
-## Question 2a 
-
-```{r, warning=FALSE}
-data2<-read.dta("Exercise3Part2.dta")
-attach(data2)
-
-# Display summary statistics (median values) for key variables
-stargazer(data2[c("prezvote", "respideo", "democrat", "GOP")], median = T,
-          type = "text", digits = 2, title = "Descriptive Statistics")
-```
-
-## Question 2b
-
-```{r}
-# Recode 'prezvote' as a labeled factor (categorical variable)
-data2$prezvote <- factor(data2$prezvote, labels=c("Bill Clinton", "Robert Dole", "H. Ross Perot"))
-
-# Estimate multinomial logistic regression
-# Dependent variable: prezvote (3 categories)
-# Independent variables: respideo (ideology), democrat, GOP
-multinomialmod <- multinom(prezvote ~ respideo + democrat + GOP, data2)
-
-# Regression Results 
-stargazer(multinomialmod, type="text", 
-          title = "The multinomial regression of presidential voting in 1996")
-
-## Interpretation based on odds
-exp(coef(multinomialmod))
-```
-
-
-## Question 2c and 2d
-
-```{r}
-## For conservatism:
-# Create a sequence of conservatism values (1 to 7) while holding
-# democrat and GOP at their median values (to isolate ideology effect)
-predata_conserv <- cbind(
-  respideo = seq(1, 7, length=500), 
-  democrat = median(democrat, na.rm=T), 
-  GOP = median(GOP, na.rm=T))
-
-# Predict the probability of voting for each candidate across the conservatism scale
-prob_conserv <- predict(multinomialmod, predata_conserv, type="probs")
-
-## For democrats:
-# When the respondent identifies as Democrat (democrat = 1, GOP = 0) 
-# and ideology is held at its mean
-predata_dem <- cbind(respideo = mean(respideo, na.rm = T), democrat = 1, GOP = 0)
-prob_dem <- predict(multinomialmod, predata_dem, type="probs")
-
-## For GOP:
-# When the respondent identifies as Republican (democrat = 0, GOP = 1)
-predata_gop <- cbind(respideo = mean(respideo, na.rm = T), democrat = 0, GOP = 1)
-prob_gop <- predict(multinomialmod, predata_gop, type="probs")
-
-## Plotting the probabilities against conservatism
-par(mfrow = c(1,1), mar=c(3.5,4,1,1), oma=c(0,0,2,0), mgp=c(2,0.5,0))
-plot(c(1,7), c(0,1), type='n', 
-     xlab="Conservatism", 
-     ylab="Predicted Probabilities (y=j)", 
-     main = "")
-lines(seq(1, 7, length=500), prob_conserv[,1], lty=1, lwd=2, col="skyblue")
-lines(seq(1, 7, length=500), prob_conserv[,2], lty=2, lwd=2, col="salmon")
-lines(seq(1, 7, length=500), prob_conserv[,3], lty=3, lwd=2, col="plum")
-legend(5.8, 0.5, cex=0.7, lty=1:3,
-       c("Bill Clinton", "Robert Dole", "H. Ross Perot"), 
-       col=c("skyblue", "salmon", "plum"))
-
-
-## Show the probabilities against different partisan identification:
-partisanship <- rbind(prob_dem, prob_gop); partisanship
-```
-
-
-## Question 2e
-```{r, warning=FALSE}
-# Recode the dependent variable (prezvote) so that "H. Ross Perot" becomes the new baseline category
-# This means all coefficients will now be interpreted relative to Perot.
-data2$recodedprezvote <- relevel(data2$prezvote, ref = "H. Ross Perot")
-
-# Estimate a new multinomial logistic regression using the new reference category
-# The predictors (respideo, democrat, GOP) remain the same.
-multinomialmod2 <- multinom(recodedprezvote ~ respideo + democrat + GOP, data2)
-
-# Compare the two multinomial models side by side:
-# - multinomialmod  : baseline = Bill Clinton (default)
-# - multinomialmod2 : baseline = H. Ross Perot (releveled)
-# The goal is to see how changing the baseline affects coefficient signs and magnitudes.
-stargazer(multinomialmod, multinomialmod2,
-          type = "text",
-          title = "The comparison of multinomial models based on different baseline")
-
-```
-
-After re-specifying the baseline category from Bill Clinton to H. Ross Perot, the direction and magnitude of the coefficients change as expected, but the substantive interpretation remains the same. In a multinomial logistic regression, changing the baseline simply alters which candidate serves as the comparison group—it does not affect the underlying relationships among variables.
-
-When Perot is the new baseline, the coefficients for Clinton and Dole switch signs relative to their previous positions. For instance, the coefficient for ideology (respideo) becomes -0.49 for Clinton and +0.77 for Dole, indicating that as respondents become more conservative, they are less likely to vote for Clinton and more likely to vote for Dole compared to Perot. Similarly, Democratic identification strongly increases support for Clinton and decreases support for Dole, while Republican identification sharply raises the likelihood of choosing Dole over either Clinton or Perot.
-
-Overall, this re-specification does not reveal new substantive information—it simply reframes the comparison. The same ideological and partisan patterns remain: conservatives and Republicans prefer Dole, liberals and Democrats prefer Clinton, and Perot continues to attract moderate, less partisan voters. Changing the baseline helps confirm the internal consistency of the model but does not alter its substantive conclusions.
-
-
-## Question 2F
-```{r, message=FALSE}
-require(statmod)
-require(remotes)
-require(mlogit)
-
-# To learn how hmftest() works, try ?hmftest or example(hmftest)
-# help("hmftest")
-# example(hmftest)
-
-# Keep only needed variables
-newdata <- subset(data2, select = c("prezvote", "respideo", "democrat", "GOP"))
-
-# Convert to mlogit format
-iiadata <- mlogit.data(newdata, shape = "wide", choice = "prezvote")
-
-# Multinomial logit with INDIVIDUAL-SPECIFIC regressors only (no ASCs)
-mlogitmod1 <- mlogit(prezvote~0|respideo+democrat+GOP, data=iiadata)
-
-# Refit on a RESTRICTED CHOICE SET (drop Clinton)
-mlogitmod2 <- mlogit(prezvote~0|respideo+democrat+GOP, 
-                     data=iiadata, 
-                     alt.subset=c("Robert Dole", "H. Ross Perot"))
-
-# Hausman–McFadden test for IIA (full model vs. restricted model)
-hmftest(mlogitmod1, mlogitmod2)
-
-```
-
-The Independence of Irrelevant Alternatives (IIA) assumption in multinomial logit models
-states that the relative odds of choosing one alternative over another are independent of the
-presence or characteristics of other options. In other words, removing or adding a third candidate
-should not affect the relative probability between the remaining two.
-
-To evaluate this assumption, I conducted a Hausman--McFadden test hmftest} by comparing
-the full model (including Clinton, Dole, and Perot) with a restricted model excluding
-Bill Clinton. The test statistic is 42.71 with 4 degrees of freedom and a p-value less than 0.001.
-Since the p-value is highly significant, I reject the IIA assumption.
-
-Statistically, this means that the choice probabilities are not independent across alternatives---%
-respondents' preferences among Dole, Perot, and Clinton are correlated.
-Substantively, this suggests that voters may view the three candidates as imperfect substitutes;
-for example, support for Perot is likely related to attitudes toward Dole rather than being an independent
-third option. Therefore, the standard multinomial logit may not fully capture the interdependence among
-choices, and more flexible models such as the nested logit could provide a better fit.
