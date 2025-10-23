@@ -145,3 +145,25 @@ ggplot(plot_data, aes(x = college, y = prob)) +
 
 ```
 
+```{r}
+require(ggeffects)
+pdturnout<-ggpredict(logit_model1,terms="college[0,1]") 
+ggplot(data = pdturnout, aes(x = x, y = predicted)) +
+    # Add point layer
+    geom_point(alpha=1.2) +
+    # Add confidence intervals as error bars
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                    width = 0, alpha=0.8, color="blue") +
+    # Add titles to the x and y axis
+    labs(x = "Education Attainment",y = "Predicted Probability of Voting") +
+    scale_x_discrete(limits=c(-1,0,1,2), labels=c("","No College","College or Above",""))+
+    # Set the theme
+    theme_bw() +
+    theme(
+      legend.position = "bottom", # move legend to the bottom
+      axis.title = element_text(size = 14) # increase axis title size
+      )
+```
+
+## Question 1d: Estimating a Two-Step Heckman Selection Model
+
