@@ -1,0 +1,169 @@
+---
+title: "Homework 4 Solution Script"
+author: "Ling Zhu and Songeun Emily Lee"
+date: "10/22/2025"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE, error = FALSE,
+  prompt = FALSE, comment = "",
+  collapse = FALSE,
+  tidy = TRUE, tidy.opts = list(width.cutoff = 60) # need to install.packages("formatR")
+)
+```
+
+# 0. Loading Packages
+```{r, warning=FALSE, message=FALSE}
+rm(list=ls()) # Start clean: remove all objects from the workspace
+## Libraries
+library(foreign)
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
+library(VGAM)
+library(MASS)
+library(GGally)
+library(censReg)
+library(sampleSelection)
+library(tidyr)
+library(mvtnorm)
+
+
+## Working directory
+setwd("/Users/songeunlee/Desktop/Ling/HW4")
+#setwd("/Users/lingzhu/Dropbox/UH Teaching/POLS6382_2025/HW Assignments/2025 HW Review and Solution Scripts/Homework 4")
+
+## Data
+CCESdata<-read.csv("CCESdata.csv")
+```
+
+# 1. Analyzing 2022 Midterm Election Data
+
+## Qeustion 1a and 1b: Data Preparation
+
+```{r}
+# ---------------------------------------------------------------
+# Question 1a:
+# Download the 2022 CES post-election data from https://cces.gov.harvard.edu/
+# This code cleans and recodes key variables for analysis.
+# ---------------------------------------------------------------
+
+# Load packages
+library(dplyr)
+library(tidyr)
+
+# Remove missing cases only for the variables we need
+CCESdata <- CCESdata %>%
+  drop_na(race, birthyear, gender, party, votereg, vote, education)
+
+# Recode variables
+CCESdata <- CCESdata %>%
+  mutate(
+    white     = ifelse(race == 1, 1, 0),          # 1 = White, 0 = Non-White
+    age       = 2022 - birthyear,                 # Age = 2022 minus birth year
+    male      = ifelse(gender == 1, 1, 0),        # 1 = Male, 0 = Female/Other
+    Democrat  = ifelse(party == 1, 1, 0),         # 1 = Democrat, 0 = Others
+    votereg   = ifelse(votereg == 1, 1, 0),       # 1 = Registered, 0 = Not/Don't know
+    vote      = ifelse(vote == 5, 1, 0),          # 1 = Voted, 0 = Did not vote
+    college   = ifelse(education %in% c(3,4,5,6), 1, 0)  # 1 = Some college or more
+  )
+
+# Keep only the variables needed for this exercise
+data1 <- CCESdata %>%
+  dplyr::select(white, age, male, Democrat, votereg, vote, college)
+
+# Check data summary
+summary(data1) # Check the dataset with View(data1) or colnames(data1)
+
+```
+
+## Question 1c: Estimating a Standard Logit
+
+```{r}
+# ---------------------------------------------------------------
+# Question 1c: Predicting the Probability of Voting
+# Estimate standard logit models using 2022 CES data
+# ---------------------------------------------------------------
+
+library(dplyr)
+library(ggplot2)
+
+# --- Model 1: Predict voting using demographics and partisanship ---
+logit_model1 <- glm(vote ~ white + age + male + Democrat + college,
+                    data = data1, family = binomial)
+
+summary(logit_model1)          # Model summary (log-odds)
+exp(coef(logit_model1))        # Exponentiated coefficients (odds ratios)
+
+# --- Model 2: Add voter registration as an additional predictor ---
+logit_model2 <- glm(vote ~ white + age + male + Democrat + college + votereg,
+                    data = data1, family = binomial)
+
+summary(logit_model2)
+exp(coef(logit_model2))
+
+# ---------------------------------------------------------------
+# Plotting Predicted Probabilities (Model 1)
+# ---------------------------------------------------------------
+
+# Calculate variable means for continuous and binary predictors
+mean_white    <- mean(data1$white)
+mean_age      <- mean(data1$age)
+mean_male     <- mean(data1$male)
+mean_Democrat <- mean(data1$Democrat)
+
+# Create a new dataset varying college (0 = No College, 1 = College)
+new_data <- data.frame(
+  white     = mean_white,
+  age       = mean_age,
+  male      = mean_male,
+  Democrat  = mean_Democrat,
+  college   = c(0, 1)
+)
+
+# Predict log-odds and convert to probabilities with 95% CI
+pred <- predict(logit_model1, newdata = new_data, type = "link", se.fit = TRUE)
+prob <- plogis(pred$fit)
+lower <- plogis(pred$fit - 1.96 * pred$se.fit)
+upper <- plogis(pred$fit + 1.96 * pred$se.fit)
+
+plot_data <- data.frame(
+  college = factor(new_data$college, labels = c("No College", "College")),
+  prob = prob, lower = lower, upper = upper
+)
+
+# --- Plot predicted probabilities with confidence intervals ---
+ggplot(plot_data, aes(x = college, y = prob)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.1) +
+  labs(x = "Education", y = "Predicted Probability of Voting") +
+  ylim(0, 1) +
+  theme_minimal()
+
+```
+
+```{r}
+require(ggeffects)
+pdturnout<-ggpredict(logit_model1,terms="college[0,1]") 
+ggplot(data = pdturnout, aes(x = x, y = predicted)) +
+    # Add point layer
+    geom_point(alpha=1.2) +
+    # Add confidence intervals as error bars
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                    width = 0, alpha=0.8, color="blue") +
+    # Add titles to the x and y axis
+    labs(x = "Education Attainment",y = "Predicted Probability of Voting") +
+    scale_x_discrete(limits=c(-1,0,1,2), labels=c("","No College","College or Above",""))+
+    # Set the theme
+    theme_bw() +
+    theme(
+      legend.position = "bottom", # move legend to the bottom
+      axis.title = element_text(size = 14) # increase axis title size
+      )
+```
+
+## Question 1d: Estimating a Two-Step Heckman Selection Model
+

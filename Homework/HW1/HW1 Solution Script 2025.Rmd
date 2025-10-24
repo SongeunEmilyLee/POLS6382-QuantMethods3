@@ -1,0 +1,132 @@
+---
+title: "Homework 1 Solution Script"
+author: "Ling Zhu and Songeun Emily Lee"
+date: "9/19/2024"
+output: pdf_document
+---
+
+## Loading Packages
+```{r, warning=FALSE, message=FALSE}
+rm(list=ls())
+#setwd("/Users/songeunlee/Desktop/HW1")
+setwd("/Users/lingzhu/Dropbox/UH Teaching/POLS6382_2025/HW Assignments/2025 HW Review and Solution Scripts/Homework 1")
+library(tinytex)
+library(foreign)
+library(maxLik)
+library(stargazer)
+gender <- read.dta("genderequality.dta")
+```
+
+## Question 1a
+```{r, message=FALSE}
+require(tidyverse)
+
+country_equality <- gender %>%
+  select(countryname, equality) %>%
+  group_by(countryname) %>%
+  summarize(
+    N    = n(),
+    Mean = mean(equality, na.rm = TRUE),
+    SD   = sd(equality, na.rm = TRUE)
+  ) %>%
+  arrange(desc(N))
+
+# Table
+knitr::kable(country_equality, digits = 2,
+             caption = "Gender Equality Index by Country")
+
+```
+
+
+The descriptive table shows variation in sample size across 17 countries, ranging from 841 observations (New Zealand) to 4,078 (India). Larger samples yield more stable estimates.
+
+Mean values reveal cross-country differences in gender equality norms: some countries show positive averages (e.g., 276 = 0.40; 528 = 0.53; 752 = 0.65), indicating more egalitarian views, while others show negative averages (e.g., 356 = –0.73; 710 = –0.37), reflecting less egalitarian attitudes.
+
+Standard deviations also vary countries (0.6–1.0), suggesting that within-country dispersion differs by country. Individuals' gender equality views are more homogeneous in countries with small standard deviations (e.g., Netherlands and Sweden), and are more heterogeneous in countries with large standard deviations (e.g.,India and South Africa).
+
+## Question 1b
+```{r fig.width=6, fig.height=4}
+ggplot(data = gender, aes(x = equality, y = kidnum)) +
+  geom_point(size = 0.3, color = "gray") +
+  geom_smooth(method = "lm", se = FALSE, color = "firebrick", linewidth = 0.8) +
+  facet_wrap(~ countryname, scales = "free_y") +
+  labs(
+    x = "Number of Children",
+    y = "Gender Equality Index"
+  ) +
+  theme_minimal(base_size = 11)
+
+```
+
+In most countries, the regression line slopes slightly downward, indicating that respondents with more children tend to hold less egalitarian views. The association is weak overall, but some countries (e.g., 392, 410) show clearer negative trends. Others (e.g., 233, 710, 752) display nearly flat slopes, suggesting little to no relationship.
+
+## Question 1c
+```{r}
+lm.mod <- lm(equality ~ income + education + married + age + female + kidnum, data = gender)
+require(sjPlot)
+stargazer(lm.mod, type = "text")
+```
+
+The regression results show that women report more egalitarian views than men (female = 0.309, p<0.01). Education is also positively associated with egalitarian gender norms (0.086, p<0.01), and age has a small but positive effect (0.005, p<0.01). By contrast, the number of children is negatively related to equality (–0.058, p<0.01), and income likewise has a negative association (–0.018, p<0.01). Marital status is not statistically significant (–0.009), indicating no systematic effect once other factors are controlled for. Overall, the model explains about 9% of the variation in gender equality norms (R² = 0.089), reflecting modest explanatory power but capturing meaningful associations of gender, education, income, and family size.
+
+## Question 2a
+```{r}
+appointments <- c(2, 2, 4, 1, 0, 1, 3, 2)
+n <- length(appointments)
+sum_y <- sum(appointments)
+
+# Grid search for lambda
+lambda_grid <- seq(0, 5, by = 0.01)
+
+const_den <- prod(factorial(appointments))
+likelihood <- sapply(lambda_grid, function(l) {
+  exp(-n * l) * (l ^ sum_y) / const_den
+})
+
+mle_lambda <- lambda_grid[which.max(likelihood)]
+mle_lambda
+
+
+plot(lambda_grid, likelihood, type = "l",
+main = "Likelihood Function for Poisson MLE",
+xlab = expression(lambda), ylab = "Likelihood")
+abline(v = mle_lambda, col = "red", lty = 2)
+
+loglikelihood <- sapply(lambda_grid, function(lambda) {
+sum(dpois(appointments, lambda, log = TRUE))
+})
+plot(lambda_grid, loglikelihood, type = "l",
+main = "Log-Likelihood Function",
+xlab = expression(lambda), ylab = "Log-Likelihood")
+abline(v = mle_lambda, col = "red", lty = 2)
+```
+
+
+In this question, we estimate the Poisson parameter $\lambda$ via maximum likelihood using a grid search.  
+The sample covers $n = 8$ presidential terms with a total of $\sum y_i = 15$ appointments.  
+The likelihood is evaluated over $\lambda$ values from 0 to 5 (step = 0.01).  
+
+Since the factorial denominator $\prod y_i!$ does not depend on $\lambda$, it is omitted without affecting the maximization and to avoid numerical issues.  
+
+The grid search identifies a maximum at $\lambda \approx 1.88$, which corresponds to the expected number of appointments per term. The likelihood plot shows the typical bell shape with a clear maximum near 1.88.  
+
+## Question 2b
+
+```{r}
+k_values <- 0:5
+poisson_probs <- dpois(k_values, lambda = mle_lambda)
+result_table <- data.frame(
+Appointments = k_values,
+Probability = round(poisson_probs, 4)
+)
+result_table
+```
+
+The Poisson model with $\hat{\lambda} = 1.88$ predicts that the most likely outcomes are  
+$1$ appointment ($p = 0.2869$) and $2$ appointments ($p = 0.2697$).  
+The next most likely is $3$ appointments ($p = 0.169$), followed by $0$ ($p = 0.1526$).  
+Four ($p = 0.0794$) or five ($p = 0.0299$) appointments are much less probable.  
+
+Overall, the distribution suggests that most presidents make $1$–$2$ appointments, with other cases being relatively rare.  
+Clinton in fact made $2$ appointments, which lies squarely within the model’s high-probability outcomes.
+
