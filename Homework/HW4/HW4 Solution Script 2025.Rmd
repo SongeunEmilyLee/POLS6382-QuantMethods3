@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 
 # 0. Loading Packages
 ```{r, warning=FALSE, message=FALSE}
-rm(list=ls()) # Start clean: remove all objects from the workspace
+# rm(list=ls()) # Start clean: remove all objects from the workspace
 ## Libraries
 library(foreign)
 library(ggplot2)
