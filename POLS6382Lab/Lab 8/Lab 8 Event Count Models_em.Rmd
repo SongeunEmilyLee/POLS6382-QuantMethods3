@@ -1,0 +1,312 @@
+---
+title: '\Large \textbf{POLS6382 Quantitative Method III\\ Maximum Likelihood Estimation}'
+subtitle: '\large \textbf{Lab 8: Event Count Models}'
+author: 
+  - Ling Zhu and Emily Lee
+  - Department of Political Science
+  - University of Houston
+date: "2025/10/29"
+output: pdf_document
+header-includes: 
+  - \renewcommand{\and}{\\}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, error=FALSE, warning=FALSE,
+                      prompt=TRUE, comment='', collapse=FALSE)
+```
+
+# 1. \normalsize Learning Objectives
+
+```{=tex}
+\begin{itemize} 
+\item Learn how to estimate a Poisson regression model. 
+\item Learn how to test for over-dispersion.
+\item Learn how to estimate a Negative Binomial model.
+\item Learn how to interpret statistical results from a Poisson/Neginative Binomial model. 
+\end{itemize}
+```
+```{r message=FALSE}
+rm(list=ls())
+setwd("/Users/songeunlee/Documents/GitHub/POLS6382-QuantMethods3/POLS6382Lab/Lab 8")
+my_packages <- c("foreign","ggplot2","ggthemes","dplyr","ggpubr","VGAM","MASS","AER","psych" ) 
+invisible(lapply(my_packages, require, character.only = TRUE))
+```
+
+# 2. \normalsize Data Example: Congressional Acts Overturned by the Supreme Court
+
+The data file (\texttt{courtdata.dta}) use data on the first through the
+104th Congresses (1789-1996). The dependent variable ( \texttt{nulls})
+is the number of Congressional acts overturned by the Supreme Court
+during that Congress. The variable captures the Supreme Court's ability
+in exercising judicial review. We use this dataset to examine whether
+the Supreme Court can function as a counter-majoritarian institution.
+Also included in the data are four other variables:
+
+```{=tex}
+\begin{itemize}
+\item \texttt{congress}, a counter for the number of the Congress;
+\item \texttt {tenure}, a variable indicating the mean number of years served by justices sitting on the Court during that Congress;
+\item \texttt{unified}, a variable coded 1 if both houses of Congress are controlled by the same political party and 0 otherwise, and
+\item  \texttt{PartyDisagreement}, an indicator of how politically ``close" the Supreme Court is to Congress.
+\begin{equation}
+PartyDisagreement=|\text{Democratic Percent in Congress}_i - \text{Democratic Percent on the Supreme Court}_i |
+\end{equation}
+\end{itemize}
+```
+Court is a responsive institution (through the appointment and
+confirmation process), but that it is so at a lag, since turnover on the
+Court is usually slow. Because of this, the Court will be more likely to
+be out-of-step with the dominant political majority, and thus, more
+likely to find against it, as the majority that appointed and confirmed
+the sitting justices recedes into the past. Moreover, the Court will be
+most effective against a \`\`weak" lawmaking majority (and less
+effective against a strong one), and that the Court will be more likely
+to strike down laws when it is in political or partisan disagreement
+with the dominant political regime.
+
+```{r fig.with=5, fig.heigh=5}
+courtdata<-read.dta("courtdata.dta")
+describe(courtdata, skew=FALSE)
+ggplot(courtdata, aes(nulls, fill = unified))+ 
+  geom_histogram(binwidth = 0.8)+
+  theme_light()+ 
+  scale_fill_brewer(type="seq", palette = 2, name = "Sample",
+                    labels = c("Divided Congress","Unified Congress", "Full Sample"))+
+  facet_grid(unified ~., margins = TRUE, scales = "free")+
+  labs(x="Number of Congressional Acts Overturned by the Supreme Court",
+       y="Count")
+```
+
+The histogram figure presents the counts of judicial overturn of
+Congressional acts. The first panel shows the distribution of counts
+under a divided Congress. The second panel shows the distribution of
+counts under a unified Congress. The bottom panel shows the distribution
+based on the full sample.
+
+# 3. \normalsize Estimating a Poisson Regression Model
+
+Because the dependent variable \texttt{nulls} measures counts, we
+consider the PRM as a proper model specification. We use the
+\texttt{glm()} function to estimate a PRM. Table 1 reports findings
+based on the Poisson regression model. As Table 1 shows, \texttt{tenure}
+has a positive and significant effect on the number of Congressional
+acts overturned by the Supreme Court. \texttt{[PartyDisagreement} has a
+significant and negative effect on the number of judicial overturns.
+
+```{r}
+model1<-glm(nulls~tenure+unified+PartyDisagreement,data=courtdata, family=poisson)
+summary(model1)
+```
+
+# 4. \normalsize Testing for Overdispersion
+
+A key assumption of the PRM is \texttt{equidispersion}, that is, the
+equality between mean and variance. Over-dispersion often occurs in
+empirical applications. One informal way to check for over-dispersion is
+to compare the mean and variance of the dependent variable. The variable
+\texttt{nulls} has a mean of 1.337 and a variance of 3.720. It suggests
+that there is likely overdispersion.
+
+The formal way of testing for overdispersion is to consider the
+alternative hypothesis: \begin{equation}
+Var(y_{i}|x_{i})=\mu_{i}+\alpha\mu_{i}=(1+\alpha)\mu_{i}
+\end{equation}
+
+The function \texttt{dispersiontest()} in package \texttt{AER} tests
+equidispersion against the alternative expressed as equation (2). The
+default option is to evaluate $(1+\alpha)$. If the argument
+\texttt{trafo} is specified, the test is formulated using $\alpha$. The
+two tests are equivalent. The first test shows that the true dispersion
+parameter ($1+\alpha$) is greater than 1. The estimated dispersion
+parameter is 2.327. The second test shows that $\alpha$ is greater than
+0 (estimated as 1.327). We have evidence that there is over-dispersion.
+
+```{r}
+# Informal test: Comparing mean and variance
+mean(courtdata$nulls)
+var(courtdata$nulls)
+# Formal test:
+dispersiontest(model1)
+dispersiontest(model1,trafo=1)
+```
+
+#5. \normalsize Negative Binomial Regression
+
+When over-dispersion occurs, the negative binomial regression model
+(NBRM) is preferred to the PRM. In \texttt{R}, tools for estimating an
+NBRM are provided by the \texttt{MASS} package. With known $\theta$,
+function \texttt{negative.binomial()} can be used. For unknown $\theta$,
+function \texttt{glm.nb()} can be used. In addition, the \texttt{Zelig}
+provides tools to estimate both PRM and NBRM. Table 2 shows results
+based on the NBRM. We observe that the coefficient of \texttt{Tenure} is
+greater in the NBRM than in the PRM. As for the coefficient of
+\texttt{Party Disagreement}, the NBRM produces a coefficient with
+greater size than that produced by the PRM.
+
+```{r}
+model2<-glm.nb(nulls~tenure+unified+ PartyDisagreement, data=courtdata)
+summary(model2)
+```
+
+We can use various methods to compare/evaluate model fit. First,
+deviance, log-likelihood, and AIC statistics can all be used to assess
+goodness of fit. For each model, we can compare the Null deviance and
+model deviance, which tells us how much a model is better than the null
+model. The following example shows that when specifying a PRM, adding
+variable \texttt{tenure} and \texttt{PartyDisagreement} significantly
+improves model fit (compared with the null model), while including
+\texttt{unified} does not significantly improve model fit.
+
+Second, we can use the likelihood ratio test to compare the two model
+specifications: PRM v. NBRM. The LR test asks \`\`Did the likelihood
+change much in one model v. the other model. (Or from the restricted
+model to the unrestricted model)." We observe that the likelihood
+changes significantly from the PRM and NBRM. The NBRM is preferred.
+Third, we can also directly compare the AIC statistics produced by the
+two models. AIC is an index of the amount of information regarding your
+data lost when your model is used to describe it. A smaller AIC is
+better.
+
+```{r}
+anova(model1, test="Chisq")
+anova(model2,test="Chisq")
+lrtest(model1,model2)
+```
+
+#6. \normalsize Substantive Interpretation: The Negative Binomial Model
+
+There are various ways by which we can substantively interpret the
+coefficients produced by a PRM or a NBRM. Because the NBRM is preferred
+in this data example, we will use the NBRM to illustrate how to
+substantively interpret model results.
+
+## 6.1 \normalsize Incidence-Rate Ratio (Factor Change).
+
+We can covert the coefficients in the NBRM using function
+\texttt{exp()}. The mean IIR estimates show for a one-unit change in
+$x_{k}$, the expected count changes by a factor of $exp(\beta_{k})$,
+holding all other variables constant. For example, the mean IIR
+associated with \texttt{tenure} is 1.115. This means that a one-year
+increase in \texttt{tenure}, will increase the expected number of
+judicial nullifications by a factor of 1.115, holding other variables
+constant. Or equivalently, increase the expected number of judicial
+nullifications by 11.5%. What about the IIR associated with
+\texttt{PartyDisagreement}? It is smaller than 1, meaning that the
+relationship is negative. A one-unit increase in the party disagreement
+scale will decrease the expected number of judicial nullifications by a
+factor of 0.9. In other words, it will decrease the expected number by
+$10\%$.
+
+```{r}
+# Incidence-Rate Ratio (IRR)
+(est <- cbind(Estimate = coef(model2),confint(model2)))
+exp(est)
+```
+
+## 6.2 \normalsize Marginal Effects (Partial Change).
+
+We can also use the estimated coefficients to calculate the marginal
+effects of $x_{k}$ on $E(y|x)$. We can do so just for the mean marginal
+effects. We can also obtain the confidence intervals of the mean
+marginal effects based on the lower and upper bounds of the CIs
+estimated for the $\beta$ coefficients. \begin{equation}
+\frac{\partial E(y|x)}{\partial x}=exp(x\beta)\beta
+\end{equation}
+
+```{r fig.width=10, fig.height=5}
+# Marginal effects (partial change) of "tenure"
+x<-seq(0.8,18.4, length=30)
+ll<-exp(x*0.01260981)*0.01260981
+ul<-exp(x*0.20883861)*0.20883861
+meaneffects=(ll+ul)/2
+meffects<-data.frame(cbind(x,meaneffects,ll,ul))
+# Mean Effects
+p1<-ggplot(meffects,aes(x=x,y=meaneffects))+
+  geom_point(color="red")+
+  theme_bw()+
+  labs(x="Tenure",y="Partial Change in E(y|x)") 
+
+p2<-ggplot(meffects,aes(x=x,y=meaneffects))+
+  geom_point(color="red")+
+  geom_errorbar(aes(ymin=ll,ymax=ul),color="gray",linewidth=0.6)+
+  theme_bw()+
+  labs(x="Tenure",y="Partial Change in E(y|x)")  
+
+ggarrange(p1, p2, ncol=2)
+```
+
+## 6.3 \normalsize Predicted Counts.
+
+After estimating the NBRM, we can obtain a predicted number of judicial
+nullifications. In-sample mean predictions can be obtained by calling
+out \texttt{\$fitted.values}. Out-sample prediction can be produced
+using function \texttt{predict()}. The flowing figure shows as
+\texttt{tenure} increases, the predicted number of judicial
+nullification also increases.
+
+```{r fig.width=3.5, fig.height=3.5}
+newdata<-data.frame(tenure=seq(0,20,length=20),
+      PartyDisagreement=mean(courtdata$PartyDisagreement),unified=mean(courtdata$unified))
+newdata1<- cbind(newdata,predict(model2, newdata, type = "response",se.fit=TRUE))
+newdata1 <- within(newdata1, {
+  LL <- fit - 2 * se.fit
+  UL <- fit + 2 * se.fit
+  meancounts <- fit
+})
+
+ggplot(newdata1,aes(x=tenure,y=meancounts))+
+  geom_point(color="red")+
+  geom_errorbar(aes(ymin=LL,ymax=UL),color="gray",linewidth=0.6, alpha=0.7, width=0)+
+  theme_bw()+
+  labs(x="Tenure",y="Predicted Counts")  
+```
+
+We can further compare the predicted number of judicial nullifications
+based on the two different model specifications: PRM (in red dots) and
+NBRM (in black dots). The comparison shows that, the PRM (red dots)
+produces greater predicted counts than those produced by the NBRM, when
+\texttt{tenure} is short (approximately, \texttt{tenure} $<10$). When
+\texttt{tenure} is greater than 10, the PRM produces smaller predicted
+counts than the negative binomial model.
+
+```{r fig.width=3.5, fig.height=3.5}
+newdata1$residual.scale<-NULL
+newdata1$fit<-NULL
+newdata1$se.fit<-NULL
+newdata1<- cbind(newdata1,predict(model1, newdata, type = "response",se.fit=TRUE))
+newdata1$posmean<-newdata1$fit
+newdata1$posse<-newdata1$se.fit
+ggplot(newdata1,aes(x=tenure,y=meancounts))+
+  geom_point(color=" black")+
+  geom_point(aes(x=tenure,y=posmean),color="red")+
+  theme_bw()+
+  labs(x="Tenure",y="Predicted Counts") 
+```
+
+# 7. \normalsize Appendix: Some Additional Visualization Examples
+
+## 7.1 \normalsize Plotting Model Coefficients
+
+```{r fig.width=3.5, fig.height=3.5}
+library(GGally)
+ggcoef(model1, exclude_intercept = TRUE)+theme_clean()
+```
+
+## 7.2 \normalsize Plotting Model Coefficients with a Table
+
+```{r fig.width=7, fig.height=4}
+library(ggstats)
+ggcoef_table(model2)
+```
+
+## 7.3 \normalsize Visualizing Predicted Countes Using Package ggeffects
+
+```{r fig.width=3.5, fig.height=3.5}
+library(ggeffects)
+ggeffect(model2,terms = "tenure[0:20 by = 1]") %>%
+plot()+theme_light()+labs(title="", x="Tenure", y="Predicted Number of Judicial Overturns")
+```
