@@ -1,0 +1,250 @@
+---
+title: "Homework 4 Solution Script"
+author: "Ling Zhu and Songeun Emily Lee"
+date: "11/29/2025"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE, error = FALSE,
+  prompt = FALSE, comment = "",
+  collapse = FALSE,
+  tidy = FALSE)
+```
+
+# 0. Loading Packages and Data
+```{r}
+# rm(list = ls())
+
+## Working directory
+setwd("/Users/songeunlee/Library/CloudStorage/Dropbox/POLS6482 2015 Fall/HW Assignments/2025 HW Review and Solution Scripts/HW5")
+# setwd("/Users/lingzhu/Dropbox/UH Teaching/POLS6382_2025/HW Assignments/2025 HW Review and Solution Scripts/Homework 5")
+
+## Libraries
+pkgs <- c(
+  "foreign", "ggplot2", "ggthemes", "dplyr", "ggpubr",
+  "VGAM", "MASS", "nlme", "survival", "simPH", "KMsurv",
+  "gtsummary", "ggstats", "survminer"
+)
+
+invisible(lapply(pkgs, require, character.only = TRUE))
+
+## Data
+data("CarpenterFdaData", package = "simPH")
+
+# Optional: Taking a quick look before digging into the analysis!
+#str(CarpenterFdaData)
+#head(CarpenterFdaData)
+
+```
+
+# 1. The Politics of Drug Approval
+
+## Question 1a: Cox Regression Model
+
+```{r}
+## Question 1a: Estimate a Cox regression model
+
+## Outcome:
+##  - acttime : time until drug approval (in months)
+##  - censor  : event indicator (1 = approved, 0 = censored)
+
+## Covariates required by the question:
+##  - mandiz01  : drug for disease mainly affecting men (dummy)
+##  - femdiz01  : drug for disease mainly affecting women (dummy)
+##  - peddiz01  : drug for disease mainly affecting children (dummy)
+##  - deathrt1  : death rate per 1,000
+##  - lethal    : lethal condition (dummy)
+##  - hhosleng  : average hospitalization length
+##  - hosp01    : population of hospitalization for the disease
+##  - stafcder  : FDA drug review staff (FTE)
+##  - wpnoavg3  : Washington Post disease stories
+```
+
+```{r fig.width=6, fig.height=4}
+## Descriptive plot of time until approval
+# Create a histogram to visualize the distribution of 'acttime'
+# helps us see when approvals tend to occur and how the time variable is spread
+
+figure1 <- ggplot(CarpenterFdaData, aes(x = acttime)) +
+  geom_histogram(binwidth = 0.5, 
+                 fill = "maroon", 
+                 color = "maroon") +
+  coord_cartesian(xlim = c(0, 100)) +
+  labs(
+    title = "Time Until Drug Approval",
+    x = "Number of Months",
+    y = "Count"
+  ) +
+  theme_bw()
+
+figure1
+
+## Mean of time to approval
+
+# A quick summary measure to see how long approval takes
+mean(CarpenterFdaData$acttime, na.rm = TRUE)
+
+## Estimate Cox proportional hazards model
+model1 <- coxph(
+  Surv(acttime, censor) ~ 
+    mandiz01 + femdiz01 + peddiz01 +
+    deathrt1 + lethal + hhosleng + 
+    hosp01 + stafcder + wpnoavg3,
+  data = CarpenterFdaData
+)
+
+summary(model1)
+
+```
+
+## Question 1b: Interpret the Cox model results
+
+```{r message=FALSE, warning=FALSE, fig.width=6, fig.height=4}
+tbl_regression(model1)
+ggcoef_table(model1)
+```
+
+The model includes 408 cases and 262 approval events. Several predictors have statistically significant effects on approval time. Femdiz01 has a positive and significant coefficient (coef = 0.71, p = 0.005), with a hazard ratio of 2.03, meaning drugs for female-related diseases are approved much faster. Hosp01 is negative and highly significant (coef = -0.73, p < 0.001); its hazard ratio of 0.48 indicates about a 52% lower approval hazard, or slower approval. Stafcder (HR = 1.0024, p < 2e-16) and wpnoavg3 (HR = 1.0031, p = 0.0008) are also significant, showing small but meaningful increases in the hazard of approval.
+
+Other variables—mandiz01, peddiz01, deathrt1, and lethal—are not statistically significant. Hhosleng is marginally significant (HR = 1.025, p = 0.099), suggesting a slight increase in approval hazard.
+
+The likelihood-ratio, Wald, and Score tests all strongly reject the null that all coefficients equal zero, indicating that the model overall explains approval time well.
+
+## Question 1c: Visualize Hazard Ratios
+
+```{r fig.width=6, fig.height=4}
+# Figure 1
+Sim1 <- coxsimLinear(model1, b = "stafcder", 
+                     Xj = seq(1000, 2000, by = 10))
+simGG(Sim1, xlab = "\n FDA Drug Review Staff, Full-Time Employees")
+
+# Figure 2
+Sim2 <- coxsimLinear(model1, b = "stafcder", qi = "First Difference", Xj = seq(1000, 2000, by = 10))
+
+simGG(Sim2, xlab = "The number of FDA drug review staff", ylab="Percent Change in Relative Hazard")
+```
+
+```{r fig.width=6, fig.height=4}
+# Mean-centering variable "stafcder"
+summary(CarpenterFdaData$stafcder)
+CarpenterFdaData$staff<-CarpenterFdaData$stafcder-1314
+model3 <- coxph(Surv(acttime, censor) ~ mandiz01 + femdiz01 + peddiz01 + deathrt1 + lethal + hhosleng + hosp01 + staff + wpnoavg3, data = CarpenterFdaData)
+Sim3 <- coxsimLinear(model3, b = "staff", 
+                     Xj = seq(-320, 480, by = 20))
+simGG(Sim3, xlab = "\n FDA Drug Review Staff, Full-Time Employees (Difference from 1,314)")
+```
+
+
+## Question 1d: Test for the Proportional Hazard Assumption
+
+```{r}
+## Test proportional hazards assumption for model1
+ph_test <- cox.zph(model1)
+ph_test
+
+par(mfrow = c(2, 2))
+plot(ph_test)
+
+```
+
+```{r}
+# Alternative specification with interactions
+altmodel <- coxph(
+  Surv(acttime, censor) ~ mandiz01 + femdiz01 + peddiz01 +
+    deathrt1:acttime + lethal + hhosleng:acttime +
+    hosp01 + stafcder:acttime + wpnoavg3,
+  data = CarpenterFdaData
+)
+
+summary(altmodel)
+
+ph_test2 <- cox.zph(altmodel)
+print(ph_test2)
+
+
+# Alternative specification with strata (binary splits)
+CarpenterFdaData <- transform(
+  CarpenterFdaData,
+  deathrt1.re = ifelse(deathrt1 <= 0.08011, 1, 2),
+  hhosleng.re = ifelse(hhosleng <= 5.454, 1, 2),
+  stafcder.re = ifelse(stafcder <= 1314, 1, 2)
+)
+
+altmodel2 <- coxph(
+  Surv(acttime, censor) ~ mandiz01 + femdiz01 + peddiz01 +
+    strata(deathrt1.re) + lethal +
+    strata(hhosleng.re) + hosp01 +
+    strata(stafcder.re) + wpnoavg3,
+  data = CarpenterFdaData
+)
+
+summary(altmodel2)
+cox.zph(altmodel2)
+
+```
+
+
+To test the proportional hazards assumption, I examined the Schoenfeld residuals using cox.zph(model1). The global test is significant, indicating a violation of the proportional hazards assumption in the original model. The individual tests suggest that deathrt1 (p = 0.00070), hhosleng (p = 0.036), and stafcder (p = 0.00052) are the main sources of this violation.
+
+To address this issue, I estimated an alternative Cox model that stratifies these three variables, allowing each to have its own baseline hazard. In the stratified model (altmodel2), the global PH test is no longer significant, indicating that the proportional hazards assumption now holds.
+
+The substantive results remain similar: femdiz01 and mandiz01 are positively associated with the hazard of approval, hosp01 is associated with a lower hazard, and wpnoavg3 remains a small but significant positive predictor. Thus, the stratified model appropriately resolves the PH violation while preserving the core findings.
+
+```{r fig.width=5, fig.height=4}
+# Additional visualization tools 
+require(survminer)
+model4<-survfit(Surv(acttime, censor)~femdiz01, data=CarpenterFdaData)
+
+ggsurvplot(model4, data=CarpenterFdaData, fun="cumhaz")
+ggsurvplot(model4, data=CarpenterFdaData)
+ggsurvplot(model4, data=CarpenterFdaData, conf.int = TRUE)
+```
+
+```{r}
+# Survival analysis
+# For more details, refer to: https://www.r-bloggers.com/2016/12/survival-analysis-basics/
+
+# Plot 1: KM survival curve with added labels
+ggsurvplot(
+  model4,
+  data = CarpenterFdaData,
+  legend.labs = c("Non-Female Disease", "Female Disease"),
+  legend.title = "Disease Type",
+  palette = c("maroon", "darkcyan"),
+  ggtheme = theme_bw()
+)
+
+# Plot 2: Most commonly used KM plot
+ggsurvplot(
+  model4,
+  data = CarpenterFdaData,
+  pval = TRUE,
+  conf.int = TRUE,
+  risk.table = TRUE,          # Show risk table
+  risk.table.col = "strata",  # Risk table colored by group
+  linetype = "strata",        # Different line types by group
+  surv.median.line = "hv",    # Horizontal + vertical median lines
+  ggtheme = theme_bw(),       # Clean background
+  palette = c("maroon", "darkcyan"),  # Custom colors
+  legend.labs = c("Non-Female Disease", "Female Disease"),
+  legend.title = "Disease Type"
+)
+
+```
+
+
+```{r fig.width=5, fig.height=4}
+# Residual analysis
+model5<-coxph(Surv(acttime, censor)~femdiz01+hosp01+staff+lethal, data=CarpenterFdaData)
+test<-cox.zph(model5)
+ggcoxzph(test)
+
+# Summarizing model results
+ggforest(model5)
+```
+
